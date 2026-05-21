@@ -1,15 +1,34 @@
+# -- build stage --
 FROM python:3.11-slim AS builder
 
-WORKDIR /app
+WORKDIR /build
 COPY pyproject.toml .
 COPY src/ src/
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --prefix=/install .
 
+# -- runtime stage --
 FROM python:3.11-slim
 
-WORKDIR /app
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /app/src /app/src
+LABEL org.opencontainers.image.title="frigate-protect-events"
+LABEL org.opencontainers.image.description="Bridge Frigate AI detections into UniFi Protect as native smart detection events"
+LABEL org.opencontainers.image.source="https://github.com/jasonmadigan/frigate-protect-events"
+LABEL org.opencontainers.image.version="0.1.0"
 
-CMD ["python", "-m", "frigate_protect_events", "/config/config.yaml"]
+RUN groupadd -r fpe && useradd -r -g fpe -d /app fpe
+
+WORKDIR /app
+
+COPY --from=builder /install/lib /usr/local/lib
+COPY --from=builder /build/src /app/src
+
+RUN mkdir -p /app/config /app/ssh && chown -R fpe:fpe /app
+
+USER fpe
+
+ENV FPE_CONFIG=/app/config/config.yaml
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD pgrep -f "frigate_protect_events" > /dev/null || exit 1
+
+ENTRYPOINT ["python", "-m", "frigate_protect_events"]
