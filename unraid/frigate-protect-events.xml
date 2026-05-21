@@ -16,7 +16,7 @@
   <Category>HomeAutomation: Tools:</Category>
   <Description>Bridges Frigate NVR AI detections into UniFi Protect as native smart detection events.</Description>
   <TemplateURL>https://raw.githubusercontent.com/jasonmadigan/frigate-protect-events/main/unraid/frigate-protect-events.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/jasonmadigan/frigate-protect-events/main/unraid/icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/jasonmadigan/frigate-protect-events/main/unraid/icon.svg</Icon>
   <ExtraParams>--restart=unless-stopped</ExtraParams>
   <Config Name="Config File" Target="/app/config/config.yaml" Default="/mnt/user/appdata/frigate-protect-events/config.yaml" Mode="ro" Description="Path to config.yaml" Type="Path" Display="always" Required="true" Mask="false"/>
   <Config Name="SSH Key Directory" Target="/app/ssh" Default="/mnt/user/appdata/frigate-protect-events/ssh" Mode="ro" Description="Directory containing id_rsa SSH key for Protect console access" Type="Path" Display="always" Required="true" Mask="false"/>
