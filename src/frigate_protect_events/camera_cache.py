@@ -32,7 +32,16 @@ class CameraCache:
         self._config_map = {k.lower(): v for k, v in config_map.items()}
         self._db_map: dict[str, CameraInfo] = {}
 
+    @property
+    def has_config_mappings(self) -> bool:
+        return bool(self._config_map)
+
     def load_from_db(self) -> None:
+        if self._config_map:
+            log.info(
+                "explicit camera mappings provided, skipping auto-discovery"
+            )
+            return
         rows = self._db.fetchall(_CAMERA_QUERY)
         self._db_map = {
             row["name"].lower(): CameraInfo(uuid=row["id"], mac=row["mac"])

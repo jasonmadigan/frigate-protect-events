@@ -79,3 +79,34 @@ class TestCameraCache:
         result = cache.resolve("front_door")
         assert result is not None
         assert result.uuid == "config-uuid"
+
+    def test_explicit_config_skips_db_discovery(self):
+        db = MagicMock()
+        cache = CameraCache(
+            db=db,
+            config_map={"garage_rear": "uuid-garage", "pumphouse": "uuid-pump"},
+        )
+        cache.load_from_db()
+        # db should never be queried
+        db.fetchall.assert_not_called()
+        # only config cameras resolve
+        assert cache.resolve("garage_rear").uuid == "uuid-garage"
+        assert cache.resolve("pumphouse").uuid == "uuid-pump"
+        assert cache.resolve("gate") is None
+
+    def test_empty_config_triggers_db_discovery(self):
+        db = MagicMock()
+        db.fetchall.return_value = [
+            {"id": "uuid-gate", "name": "gate", "mac": "AA:BB:CC:DD:EE:02", "host": "1.2.3.7"},
+        ]
+        cache = CameraCache(db=db, config_map={})
+        cache.load_from_db()
+        db.fetchall.assert_called_once()
+        assert cache.resolve("gate").uuid == "uuid-gate"
+
+    def test_has_config_mappings_property(self):
+        db = MagicMock()
+        empty = CameraCache(db=db, config_map={})
+        assert not empty.has_config_mappings
+        populated = CameraCache(db=db, config_map={"cam": "uuid"})
+        assert populated.has_config_mappings
