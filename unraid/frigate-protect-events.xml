@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>frigate-protect-events</Name>
-  <Repository>ghcr.io/jasonmadigan/frigate-protect-events:latest</Repository>
+  <Repository>ghcr.io/jasonmadigan/frigate-protect-events:main</Repository>
   <Registry>https://ghcr.io/jasonmadigan/frigate-protect-events</Registry>
   <Branch>
-    <Tag>latest</Tag>
-    <TagDescription>Latest stable release</TagDescription>
+    <Tag>main</Tag>
+    <TagDescription>Latest from main branch</TagDescription>
   </Branch>
   <Network>bridge</Network>
   <Shell>sh</Shell>
