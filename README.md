@@ -63,11 +63,21 @@ Events arrive on `{prefix}/events` as JSON with `type` (new/update/end), `before
 3. Edit `/mnt/user/appdata/frigate-protect-events/config.yaml` with your MQTT broker, Protect console IP, and camera mappings.
 4. Install via Community Apps (search "frigate-protect-events") or run:
    ```
+   FPE_CONFIG_PATH=/mnt/user/appdata/frigate-protect-events/config.yaml \
+   FPE_SSH_PATH=/mnt/user/appdata/frigate-protect-events/ssh \
    docker compose up -d
    ```
 5. Check logs: `docker logs -f frigate-protect-events`
 
 ## Quick start (Docker)
+
+With docker compose (uses local `./config.yaml` and `./ssh/` by default):
+
+```
+docker compose up -d
+```
+
+Or with `docker run`:
 
 ```
 docker run -d \

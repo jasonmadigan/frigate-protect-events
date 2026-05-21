@@ -9,5 +9,5 @@ services:
       - TZ=Europe/Dublin
       - FPE_CONFIG=/app/config/config.yaml
     volumes:
-      - /mnt/user/appdata/frigate-protect-events/config.yaml:/app/config/config.yaml:ro
-      - /mnt/user/appdata/frigate-protect-events/ssh:/app/ssh:ro
+      - ${FPE_CONFIG_PATH:-./config.yaml}:/app/config/config.yaml:ro
+      - ${FPE_SSH_PATH:-./ssh}:/app/ssh:ro
