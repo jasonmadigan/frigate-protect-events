@@ -85,9 +85,8 @@ def _iso_now() -> str:
 
 
 class ProtectWriter:
-    def __init__(self, db: ProtectDb, write_thumbnail_to_db: bool = False) -> None:
+    def __init__(self, db: ProtectDb) -> None:
         self._db = db
-        self._write_thumbnail_to_db = write_thumbnail_to_db
 
     def create_event(self, det: ProtectDetection) -> None:
         self._db.execute(
@@ -184,9 +183,6 @@ class ProtectWriter:
         self, det: ProtectDetection, jpeg: bytes | None
     ) -> None:
         if jpeg is None:
-            return
-        if not self._write_thumbnail_to_db:
-            # TODO: write jpeg to protect filesystem path once discovered
             return
         self._db.execute(
             _INSERT_THUMBNAIL,

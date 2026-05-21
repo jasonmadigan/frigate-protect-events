@@ -200,9 +200,9 @@ class TestCreateDetectionLabels:
 
 
 class TestCreateThumbnail:
-    def test_inserts_thumbnail_when_enabled(self):
+    def test_inserts_thumbnail_when_jpeg_provided(self):
         db = MagicMock()
-        writer = ProtectWriter(db, write_thumbnail_to_db=True)
+        writer = ProtectWriter(db)
         det = _make_detection()
         jpeg = b"\xff\xd8\xff\xe0JFIF"
 
@@ -223,49 +223,14 @@ class TestCreateThumbnail:
 
         db.execute.assert_not_called()
 
-    def test_skips_db_insert_when_disabled(self):
-        db = MagicMock()
-        writer = ProtectWriter(db, write_thumbnail_to_db=False)
-        det = _make_detection()
-        jpeg = b"\xff\xd8\xff\xe0JFIF"
-
-        writer.create_thumbnail(det, jpeg)
-
-        db.execute.assert_not_called()
-
-    def test_default_is_disabled(self):
-        db = MagicMock()
-        writer = ProtectWriter(db)
-        det = _make_detection()
-        jpeg = b"\xff\xd8\xff\xe0JFIF"
-
-        writer.create_thumbnail(det, jpeg)
-
-        db.execute.assert_not_called()
-
 
 class TestWriteDetection:
-    def test_orchestrates_all_operations(self):
+    def test_orchestrates_all_operations_with_jpeg(self):
         db = MagicMock()
         db.fetchone = MagicMock(side_effect=[
             {"lid": 1}, {"lid": 2}, {"lid": 3},
         ])
         writer = ProtectWriter(db)
-        det = _make_detection()
-        jpeg = b"\xff\xd8"
-
-        writer.write_detection(det, jpeg)
-
-        # event + sdo + raw + track + 2 detection labels = 6 (thumbnail skipped by default)
-        assert db.execute.call_count >= 6
-        db.commit.assert_called_once()
-
-    def test_orchestrates_with_thumbnail_enabled(self):
-        db = MagicMock()
-        db.fetchone = MagicMock(side_effect=[
-            {"lid": 1}, {"lid": 2}, {"lid": 3},
-        ])
-        writer = ProtectWriter(db, write_thumbnail_to_db=True)
         det = _make_detection()
         jpeg = b"\xff\xd8"
 
@@ -273,6 +238,20 @@ class TestWriteDetection:
 
         # event + sdo + raw + track + 2 detection labels + thumbnail = 7
         assert db.execute.call_count >= 7
+        db.commit.assert_called_once()
+
+    def test_orchestrates_without_jpeg(self):
+        db = MagicMock()
+        db.fetchone = MagicMock(side_effect=[
+            {"lid": 1}, {"lid": 2}, {"lid": 3},
+        ])
+        writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.write_detection(det, None)
+
+        # event + sdo + raw + track + 2 detection labels = 6 (no thumbnail)
+        assert db.execute.call_count >= 6
         db.commit.assert_called_once()
 
     def test_rolls_back_on_error(self):

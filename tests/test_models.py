@@ -62,9 +62,7 @@ class TestFrigateEvent:
 class TestProtectDetection:
     def test_from_frigate_event_generates_ids(self):
         evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
-        det = ProtectDetection.from_frigate_event(
-            evt, "cam-uuid-1", camera_mac="AA:BB:CC:DD:EE:FF"
-        )
+        det = ProtectDetection.from_frigate_event(evt, "cam-uuid-1")
 
         # event id is valid uuid4
         uuid.UUID(det.event_id, version=4)
@@ -72,18 +70,9 @@ class TestProtectDetection:
         uuid.UUID(det.raw_id, version=4)
         uuid.UUID(det.track_id, version=4)
 
-    def test_thumbnail_id_uses_mac_and_timestamp(self):
-        evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
-        det = ProtectDetection.from_frigate_event(
-            evt, "cam-uuid-1", camera_mac="AA:BB:CC:DD:EE:FF"
-        )
-        # format: {MAC_no_colons}-{start_ms}
-        assert det.thumbnail_id == "AABBCCDDEEFF-1700000000000"
-
-    def test_thumbnail_id_without_mac_falls_back_to_hex(self):
+    def test_thumbnail_id_is_24_char_hex(self):
         evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
         det = ProtectDetection.from_frigate_event(evt, "cam-uuid-1")
-        # no mac provided, should fall back to random hex
         assert re.match(r"^[0-9a-f]{24}$", det.thumbnail_id)
 
     def test_timestamps_are_epoch_ms(self):

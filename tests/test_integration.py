@@ -37,7 +37,7 @@ class TestIntegrationNewEvent:
     def test_write_detection_creates_all_rows(self, db_conn):
         db = _make_db()
         try:
-            writer = ProtectWriter(db, write_thumbnail_to_db=True)
+            writer = ProtectWriter(db)
             evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
             det = ProtectDetection.from_frigate_event(evt, CAMERA_UUID)
             jpeg = b"\xff\xd8\xff\xe0test-jpeg"
@@ -107,17 +107,15 @@ class TestIntegrationNewEvent:
         finally:
             db.close()
 
-    def test_write_detection_skips_thumbnail_db_by_default(self, db_conn):
+    def test_write_detection_skips_thumbnail_when_no_jpeg(self, db_conn):
         db = _make_db()
         try:
             writer = ProtectWriter(db)
             evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
             det = ProtectDetection.from_frigate_event(evt, CAMERA_UUID)
-            jpeg = b"\xff\xd8\xff\xe0test-jpeg"
 
-            writer.write_detection(det, jpeg)
+            writer.write_detection(det, None)
 
-            # thumbnail should NOT be in the DB
             thumb = db.fetchone('SELECT * FROM thumbnails WHERE id = %s', (det.thumbnail_id,))
             assert thumb is None
         finally:

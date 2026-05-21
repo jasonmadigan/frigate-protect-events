@@ -45,7 +45,7 @@ def main() -> None:
     cameras.load_from_db()
 
     # writer and coalescing
-    writer = ProtectWriter(db, write_thumbnail_to_db=cfg.write_thumbnail_to_db)
+    writer = ProtectWriter(db)
     tracker = CoalesceTracker(cfg.coalesce_window_s)
 
     # tracks frigate event id -> protect event id for end events
@@ -63,9 +63,7 @@ def main() -> None:
             return
 
         if event_type == "new":
-            det = ProtectDetection.from_frigate_event(
-                event, camera_uuid, camera_mac=cam_info.mac
-            )
+            det = ProtectDetection.from_frigate_event(event, camera_uuid)
 
             # check coalescing
             existing = tracker.check(camera_uuid, detect_type)

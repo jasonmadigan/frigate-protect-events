@@ -63,16 +63,6 @@ class TestLoadConfig:
             assert cfg.cameras == {}
             assert cfg.coalesce_window_s == 30
             assert cfg.frigate_host is None
-            assert cfg.write_thumbnail_to_db is False
-        finally:
-            os.unlink(path)
-
-    def test_write_thumbnail_to_db_opt_in(self):
-        yaml = MINIMAL_YAML + "write_thumbnail_to_db: true\n"
-        path = _write_yaml(yaml)
-        try:
-            cfg = load_config(path)
-            assert cfg.write_thumbnail_to_db is True
         finally:
             os.unlink(path)
 

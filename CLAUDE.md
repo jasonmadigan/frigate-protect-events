@@ -97,8 +97,7 @@ WHERE "isThirdPartyCamera" = true
   AND host IS NOT NULL
 ```
 
-Map Frigate camera names to Protect camera UUIDs and MACs. Cache at startup.
-MAC is used for thumbnail ID generation (`{MAC_no_colons}-{epoch_ms}`).
+Map Frigate camera names to Protect camera UUIDs. Cache at startup.
 
 ### 2. INSERT event (on detection start)
 
@@ -114,7 +113,7 @@ VALUES ($1, 'smartDetectZone', $2::bigint, $3, 100, $4::json,
 - `$2`: `start_time * 1000` (epoch ms)
 - `$3`: Protect camera UUID
 - `$4`: e.g. `["person"]`
-- `$5`: thumbnail ID (`{MAC_no_colons}-{start_ms}`, or 24-char random hex fallback)
+- `$5`: thumbnail ID (24-char random hex)
 - `$6, $7`: ISO-8601 UTC now
 
 ### 3. UPDATE event (on detection end)
@@ -211,9 +210,13 @@ UPSERT handles coalesced events without unique constraint violations.
 
 ### 9. Thumbnail storage
 
-Protect 7.1.69 stores thumbnails on the filesystem, not in the DB.
-The thumbnailId in the events table still references the thumbnail by `{MAC}-{epoch_ms}` ID.
-DB INSERT is behind `write_thumbnail_to_db` config flag (default: false).
+Protect uses `thumbnailId.length` to decide where to fetch thumbnail data:
+- `length === 24`: reads from `thumbnails` DB table (`content` column, bytea)
+- `length !== 24`: extracts from `.ubv` video files on the filesystem
+
+We don't have UBV video for Frigate cameras, so thumbnailId must always be exactly
+24 chars (random hex via `os.urandom(12).hex()`). We always write to the DB table
+when snapshot data is available.
 
 ```sql
 INSERT INTO thumbnails
@@ -258,7 +261,6 @@ cameras:
   front_door: "abc123-..."
 
 coalesce_window_s: 30
-write_thumbnail_to_db: false  # true for older firmware with DB-backed thumbnails
 ```
 
 ## Risks
