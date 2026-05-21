@@ -29,6 +29,6 @@ USER fpe
 ENV FPE_CONFIG=/app/config/config.yaml
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD pgrep -f "frigate_protect_events" > /dev/null || exit 1
+    CMD kill -0 1 || exit 1
 
 ENTRYPOINT ["python", "-m", "frigate_protect_events"]
