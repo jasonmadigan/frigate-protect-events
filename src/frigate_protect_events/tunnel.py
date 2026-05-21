@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 import threading
 import time
@@ -36,7 +37,7 @@ class SshTunnel:
             hostname=self._config.host,
             port=self._config.ssh_port,
             username=self._config.ssh_user,
-            key_filename=self._config.ssh_key,
+            key_filename=os.path.expanduser(self._config.ssh_key),
         )
         self._transport = self._client.get_transport()
 
@@ -75,7 +76,7 @@ class SshTunnel:
             try:
                 channel = self._transport.open_channel(
                     "direct-tcpip",
-                    ("/run/postgresql", self._config.db_port),
+                    ("127.0.0.1", self._config.db_port),
                     client_sock.getpeername(),
                 )
             except Exception:
@@ -94,19 +95,22 @@ class SshTunnel:
             t.start()
 
     def _relay(self, sock: socket.socket, channel: paramiko.Channel) -> None:
+        """bidirectional relay using select for proper full-duplex."""
+        import select
+
         try:
             while True:
-                r = channel.recv(4096)
-                if not r:
-                    break
-                sock.sendall(r)
-
-                if sock.fileno() == -1:
-                    break
-                s = sock.recv(4096)
-                if not s:
-                    break
-                channel.sendall(s)
+                r, _, _ = select.select([sock, channel], [], [], 1.0)
+                if channel in r:
+                    data = channel.recv(4096)
+                    if not data:
+                        break
+                    sock.sendall(data)
+                if sock in r:
+                    data = sock.recv(4096)
+                    if not data:
+                        break
+                    channel.sendall(data)
         except Exception:
             pass
         finally:
