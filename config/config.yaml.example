@@ -8,7 +8,9 @@ mqtt:
 protect:
   host: 192.168.1.x
   ssh_user: root
-  ssh_key: /root/.ssh/id_rsa
+  # container path -- on unraid the host key lives at
+  # /mnt/user/appdata/frigate-protect-events/ssh/id_rsa
+  ssh_key: /app/ssh/id_rsa
   ssh_port: 22
   db_port: 5433
   db_name: unifi-protect
