@@ -1,0 +1,7 @@
+services:
+  frigate-protect-events:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./config:/config:ro
+      - ~/.ssh:/root/.ssh:ro
