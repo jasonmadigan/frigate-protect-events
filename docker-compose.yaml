@@ -1,7 +1,13 @@
 services:
   frigate-protect-events:
     build: .
+    image: ghcr.io/jasonmadigan/frigate-protect-events:latest
+    container_name: frigate-protect-events
     restart: unless-stopped
+    network_mode: bridge
+    environment:
+      - TZ=Europe/Dublin
+      - FPE_CONFIG=/app/config/config.yaml
     volumes:
-      - ./config:/config:ro
-      - ~/.ssh:/root/.ssh:ro
+      - ${FPE_CONFIG_PATH:-./config.yaml}:/app/config/config.yaml:ro
+      - ${FPE_SSH_PATH:-./ssh}:/app/ssh:ro

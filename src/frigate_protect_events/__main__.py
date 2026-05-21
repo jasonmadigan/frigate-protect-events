@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import signal
 import sys
 import time
@@ -24,11 +25,18 @@ log = logging.getLogger("frigate_protect_events")
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("usage: python -m frigate_protect_events <config.yaml>", file=sys.stderr)
+    config_path = (
+        sys.argv[1]
+        if len(sys.argv) >= 2
+        else os.environ.get("FPE_CONFIG")
+    )
+    if not config_path:
+        print(
+            "usage: python -m frigate_protect_events <config.yaml>\n"
+            "  or set FPE_CONFIG=/path/to/config.yaml",
+            file=sys.stderr,
+        )
         sys.exit(1)
-
-    config_path = sys.argv[1]
     cfg = load_config(config_path)
     log.info("loaded config from %s", config_path)
 

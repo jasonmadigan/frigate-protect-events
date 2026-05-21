@@ -4,7 +4,13 @@ __pycache__
 *.pyc
 *.egg-info
 .pytest_cache
+dist
+build
 tests/
+config.yaml
+unraid
+.github
+.claude
 docker-compose.test.yaml
 CLAUDE.md
 README.md

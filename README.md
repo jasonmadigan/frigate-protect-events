@@ -48,6 +48,47 @@ Events arrive on `{prefix}/events` as JSON with `type` (new/update/end), `before
 | dog / cat / bird | animal |
 | package | package |
 
+## Quick start (Unraid)
+
+1. Copy the example config to your appdata path:
+   ```
+   mkdir -p /mnt/user/appdata/frigate-protect-events/ssh
+   cp config/config.yaml.example /mnt/user/appdata/frigate-protect-events/config.yaml
+   ```
+2. Copy your SSH key for the Protect console:
+   ```
+   cp ~/.ssh/id_rsa /mnt/user/appdata/frigate-protect-events/ssh/id_rsa
+   chmod 600 /mnt/user/appdata/frigate-protect-events/ssh/id_rsa
+   ```
+3. Edit `/mnt/user/appdata/frigate-protect-events/config.yaml` with your MQTT broker, Protect console IP, and camera mappings.
+4. Install via Community Apps (search "frigate-protect-events") or run:
+   ```
+   FPE_CONFIG_PATH=/mnt/user/appdata/frigate-protect-events/config.yaml \
+   FPE_SSH_PATH=/mnt/user/appdata/frigate-protect-events/ssh \
+   docker compose up -d
+   ```
+5. Check logs: `docker logs -f frigate-protect-events`
+
+## Quick start (Docker)
+
+With docker compose (uses local `./config.yaml` and `./ssh/` by default):
+
+```
+docker compose up -d
+```
+
+Or with `docker run`:
+
+```
+docker run -d \
+  --name frigate-protect-events \
+  --restart unless-stopped \
+  -v /path/to/config.yaml:/app/config/config.yaml:ro \
+  -v /path/to/ssh:/app/ssh:ro \
+  -e TZ=Europe/Dublin \
+  ghcr.io/jasonmadigan/frigate-protect-events:latest
+```
+
 ## Configuration
 
 ```yaml
@@ -59,7 +100,7 @@ mqtt:
 protect:
   host: 192.168.1.x  # UDM/UNVR IP
   ssh_user: root
-  ssh_key: ~/.ssh/id_rsa
+  ssh_key: /app/ssh/id_rsa  # container path
 
 cameras:
   # frigate camera name -> protect camera UUID

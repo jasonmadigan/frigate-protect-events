@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>frigate-protect-events</Name>
+  <Repository>ghcr.io/jasonmadigan/frigate-protect-events:latest</Repository>
+  <Registry>https://ghcr.io/jasonmadigan/frigate-protect-events</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest stable release</TagDescription>
+  </Branch>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jasonmadigan/frigate-protect-events/issues</Support>
+  <Project>https://github.com/jasonmadigan/frigate-protect-events</Project>
+  <Overview>Bridges Frigate NVR AI detections into UniFi Protect as native smart detection events. Subscribes to Frigate MQTT events and writes detections directly into Protect's PostgreSQL database via SSH tunnel.</Overview>
+  <Category>HomeAutomation: Tools:</Category>
+  <Description>Bridges Frigate NVR AI detections into UniFi Protect as native smart detection events.</Description>
+  <TemplateURL>https://raw.githubusercontent.com/jasonmadigan/frigate-protect-events/main/unraid/frigate-protect-events.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/jasonmadigan/frigate-protect-events/main/unraid/icon.svg</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <Config Name="Config File" Target="/app/config/config.yaml" Default="/mnt/user/appdata/frigate-protect-events/config.yaml" Mode="ro" Description="Path to config.yaml" Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="SSH Key Directory" Target="/app/ssh" Default="/mnt/user/appdata/frigate-protect-events/ssh" Mode="ro" Description="Directory containing id_rsa SSH key for Protect console access" Type="Path" Display="always" Required="true" Mask="false"/>
+  <Config Name="Timezone" Target="TZ" Default="Europe/Dublin" Description="Timezone" Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Config Path" Target="FPE_CONFIG" Default="/app/config/config.yaml" Description="Path to config file inside container" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>
