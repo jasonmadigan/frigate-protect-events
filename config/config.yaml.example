@@ -1,0 +1,25 @@
+mqtt:
+  host: 192.168.1.x
+  port: 1883
+  topic_prefix: frigate
+  # username: user
+  # password: pass
+
+protect:
+  host: 192.168.1.x
+  ssh_user: root
+  ssh_key: /root/.ssh/id_rsa
+  ssh_port: 22
+  db_port: 5433
+  db_name: unifi-protect
+  db_user: postgres
+
+cameras:
+  # frigate_name: protect_uuid
+  # leave empty for auto-discovery from protect's cameras table
+  # front_door: "abc123-def456-..."
+
+coalesce_window_s: 30
+
+# optional: set to enable snapshot fetching from frigate HTTP API
+# frigate_host: 192.168.1.x
