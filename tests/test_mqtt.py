@@ -87,7 +87,7 @@ class TestMqttSubscriber:
             "after": {
                 "id": "evt-2",
                 "camera": "cam",
-                "label": "bicycle",
+                "label": "robot_lawnmower",
                 "score": 0.8,
                 "start_time": 1000.0,
             },

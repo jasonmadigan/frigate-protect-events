@@ -38,7 +38,10 @@ def _uuid4() -> str:
     return str(uuid.uuid4())
 
 
-def _thumbnail_id() -> str:
+def _thumbnail_id(camera_mac: str | None, start_ms: int) -> str:
+    if camera_mac:
+        mac_clean = camera_mac.replace(":", "")
+        return f"{mac_clean}-{start_ms}"
     return os.urandom(12).hex()
 
 
@@ -66,7 +69,10 @@ class ProtectDetection:
 
     @classmethod
     def from_frigate_event(
-        cls, event: FrigateEvent, camera_uuid: str
+        cls,
+        event: FrigateEvent,
+        camera_uuid: str,
+        camera_mac: str | None = None,
     ) -> ProtectDetection:
         detect_type = map_label(event.label) or event.label
         start_ms = int(event.start_time * 1000)
@@ -107,7 +113,7 @@ class ProtectDetection:
             sdo_id=_uuid4(),
             raw_id=_uuid4(),
             track_id=_uuid4(),
-            thumbnail_id=_thumbnail_id(),
+            thumbnail_id=_thumbnail_id(camera_mac, start_ms),
             camera_id=camera_uuid,
             detect_type=detect_type,
             start_ms=start_ms,

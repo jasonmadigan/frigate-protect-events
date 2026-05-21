@@ -33,6 +33,7 @@ class Config:
     cameras: dict[str, str] = field(default_factory=dict)
     coalesce_window_s: int = 30
     frigate_host: str | None = None
+    write_thumbnail_to_db: bool = False
 
 
 def load_config(path: str | Path) -> Config:
@@ -77,4 +78,5 @@ def load_config(path: str | Path) -> Config:
         cameras=raw.get("cameras") or {},
         coalesce_window_s=raw.get("coalesce_window_s", 30),
         frigate_host=raw.get("frigate_host"),
+        write_thumbnail_to_db=bool(raw.get("write_thumbnail_to_db", False)),
     )

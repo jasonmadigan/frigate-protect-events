@@ -78,8 +78,8 @@ Ignore `update` events to avoid hammering the DB.
 | Frigate label | Protect `smartDetectTypes` |
 |-|-|
 | person | `["person"]` |
-| car, motorcycle, bus, truck | `["vehicle"]` |
-| dog, cat, bird | `["animal"]` |
+| car, motorcycle, bus, truck, bicycle, boat | `["vehicle"]` |
+| dog, cat, bird, fox, deer, rabbit, horse, cow | `["animal"]` |
 | package | `["package"]` |
 
 ## Protect DB schema and SQL
@@ -97,7 +97,8 @@ WHERE "isThirdPartyCamera" = true
   AND host IS NOT NULL
 ```
 
-Map Frigate camera names to Protect camera UUIDs. Cache this at startup.
+Map Frigate camera names to Protect camera UUIDs and MACs. Cache at startup.
+MAC is used for thumbnail ID generation (`{MAC_no_colons}-{epoch_ms}`).
 
 ### 2. INSERT event (on detection start)
 
@@ -113,7 +114,7 @@ VALUES ($1, 'smartDetectZone', $2::bigint, $3, 100, $4::json,
 - `$2`: `start_time * 1000` (epoch ms)
 - `$3`: Protect camera UUID
 - `$4`: e.g. `["person"]`
-- `$5`: thumbnail ID (24-char random hex)
+- `$5`: thumbnail ID (`{MAC_no_colons}-{start_ms}`, or 24-char random hex fallback)
 - `$6, $7`: ISO-8601 UTC now
 
 ### 3. UPDATE event (on detection end)
@@ -174,30 +175,45 @@ Required for iOS "Find Anything" feature.
 ### 7. UPSERT labels
 
 ```sql
-INSERT INTO labels (id, name, "createdAt", "updatedAt")
-VALUES ($1, $2, $3, $3)
-ON CONFLICT (name) DO UPDATE SET "updatedAt" = EXCLUDED."updatedAt"
+INSERT INTO labels (id, name, "lastSeen", "createdAt", "updatedAt")
+VALUES ($1, $2, $3, $4, $4)
+ON CONFLICT (name) DO UPDATE SET "lastSeen" = EXCLUDED."lastSeen", "updatedAt" = EXCLUDED."updatedAt"
 RETURNING lid
 ```
+
+- `$3`: detection timestamp (epoch ms)
 
 Create labels for: `eventType:smartDetectZone`, `smartDetectType:person`, `camera:{uuid}`.
 `lid` is auto-increment integer used in `detectionLabels`.
 
-### 8. INSERT detectionLabels
+### 8. UPSERT detectionLabels
 
+Event-level row (objectId IS NULL):
 ```sql
 INSERT INTO "detectionLabels"
   (id, "eventId", "objectId", labels, "createdAt", "updatedAt")
-VALUES ($1, $2, NULLIF($3, ''), $4::integer[], $5, $6)
+VALUES ($1, $2, NULL, $3::integer[], $4, $5)
+ON CONFLICT ("eventId") WHERE "objectId" IS NULL
+DO UPDATE SET labels = EXCLUDED.labels, "updatedAt" = EXCLUDED."updatedAt"
 ```
 
-Two rows per detection:
-- Event-level: `objectId = NULL`, `labels = {lid1, lid2, lid3}`
-- SDO-level: `objectId = sdo_id`, `labels = {lid1, lid2, lid3}`
+SDO-level row (objectId IS NOT NULL):
+```sql
+INSERT INTO "detectionLabels"
+  (id, "eventId", "objectId", labels, "createdAt", "updatedAt")
+VALUES ($1, $2, $3, $4::integer[], $5, $6)
+ON CONFLICT ("eventId", "objectId") WHERE "objectId" IS NOT NULL
+DO UPDATE SET labels = EXCLUDED.labels, "updatedAt" = EXCLUDED."updatedAt"
+```
 
-The event-level row is required for Protect's search INNER JOIN.
+Two rows per detection. The event-level row is required for Protect's search INNER JOIN.
+UPSERT handles coalesced events without unique constraint violations.
 
-### 9. INSERT thumbnail
+### 9. Thumbnail storage
+
+Protect 7.1.69 stores thumbnails on the filesystem, not in the DB.
+The thumbnailId in the events table still references the thumbnail by `{MAC}-{epoch_ms}` ID.
+DB INSERT is behind `write_thumbnail_to_db` config flag (default: false).
 
 ```sql
 INSERT INTO thumbnails
@@ -206,9 +222,6 @@ INSERT INTO thumbnails
 VALUES ($1, $2, $3, $4::bigint, $5, $6, $7, false)
 ON CONFLICT (id) DO NOTHING
 ```
-
-- `$1`: 24-char random hex ID
-- `$7`: binary JPEG data (bytea, format=1)
 
 ### Event coalescing
 
@@ -245,6 +258,7 @@ cameras:
   front_door: "abc123-..."
 
 coalesce_window_s: 30
+write_thumbnail_to_db: false  # true for older firmware with DB-backed thumbnails
 ```
 
 ## Risks

@@ -45,16 +45,26 @@ VALUES (%s, %s, %s, %s::json, %s, %s)
 """
 
 _UPSERT_LABEL = """\
-INSERT INTO labels (id, name, "createdAt", "updatedAt")
-VALUES (%s, %s, %s, %s)
-ON CONFLICT (name) DO UPDATE SET "updatedAt" = EXCLUDED."updatedAt"
+INSERT INTO labels (id, name, "lastSeen", "createdAt", "updatedAt")
+VALUES (%s, %s, %s, %s, %s)
+ON CONFLICT (name) DO UPDATE SET "lastSeen" = EXCLUDED."lastSeen", "updatedAt" = EXCLUDED."updatedAt"
 RETURNING lid
 """
 
-_INSERT_DETECTION_LABEL = """\
+_UPSERT_EVENT_DETECTION_LABEL = """\
 INSERT INTO "detectionLabels"
   (id, "eventId", "objectId", labels, "createdAt", "updatedAt")
-VALUES (%s, %s, NULLIF(%s, ''), %s::integer[], %s, %s)
+VALUES (%s, %s, NULL, %s::integer[], %s, %s)
+ON CONFLICT ("eventId") WHERE "objectId" IS NULL
+DO UPDATE SET labels = EXCLUDED.labels, "updatedAt" = EXCLUDED."updatedAt"
+"""
+
+_UPSERT_SDO_DETECTION_LABEL = """\
+INSERT INTO "detectionLabels"
+  (id, "eventId", "objectId", labels, "createdAt", "updatedAt")
+VALUES (%s, %s, %s, %s::integer[], %s, %s)
+ON CONFLICT ("eventId", "objectId") WHERE "objectId" IS NOT NULL
+DO UPDATE SET labels = EXCLUDED.labels, "updatedAt" = EXCLUDED."updatedAt"
 """
 
 _INSERT_THUMBNAIL = """\
@@ -75,8 +85,9 @@ def _iso_now() -> str:
 
 
 class ProtectWriter:
-    def __init__(self, db: ProtectDb) -> None:
+    def __init__(self, db: ProtectDb, write_thumbnail_to_db: bool = False) -> None:
         self._db = db
+        self._write_thumbnail_to_db = write_thumbnail_to_db
 
     def create_event(self, det: ProtectDetection) -> None:
         self._db.execute(
@@ -148,7 +159,9 @@ class ProtectWriter:
         ]
         lids = []
         for name in label_names:
-            row = self._db.fetchone(_UPSERT_LABEL, (_uuid4(), name, now, now))
+            row = self._db.fetchone(
+                _UPSERT_LABEL, (_uuid4(), name, det.start_ms, now, now)
+            )
             lids.append(row["lid"])
         return lids
 
@@ -156,14 +169,14 @@ class ProtectWriter:
         self, det: ProtectDetection, lids: list[int]
     ) -> None:
         now = _iso_now()
-        # event-level: objectId = NULL (via NULLIF('', ''))
+        # event-level: objectId = NULL (hardcoded in SQL)
         self._db.execute(
-            _INSERT_DETECTION_LABEL,
-            (_uuid4(), det.event_id, "", lids, now, now),
+            _UPSERT_EVENT_DETECTION_LABEL,
+            (_uuid4(), det.event_id, lids, now, now),
         )
         # sdo-level
         self._db.execute(
-            _INSERT_DETECTION_LABEL,
+            _UPSERT_SDO_DETECTION_LABEL,
             (_uuid4(), det.event_id, det.sdo_id, lids, now, now),
         )
 
@@ -171,6 +184,9 @@ class ProtectWriter:
         self, det: ProtectDetection, jpeg: bytes | None
     ) -> None:
         if jpeg is None:
+            return
+        if not self._write_thumbnail_to_db:
+            # TODO: write jpeg to protect filesystem path once discovered
             return
         self._db.execute(
             _INSERT_THUMBNAIL,

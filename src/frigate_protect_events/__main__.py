@@ -45,24 +45,27 @@ def main() -> None:
     cameras.load_from_db()
 
     # writer and coalescing
-    writer = ProtectWriter(db)
+    writer = ProtectWriter(db, write_thumbnail_to_db=cfg.write_thumbnail_to_db)
     tracker = CoalesceTracker(cfg.coalesce_window_s)
 
     # tracks frigate event id -> protect event id for end events
     event_map: dict[str, str] = {}
 
     def on_event(event_type: str, event: FrigateEvent) -> None:
-        camera_uuid = cameras.resolve(event.camera)
-        if not camera_uuid:
+        cam_info = cameras.resolve(event.camera)
+        if not cam_info:
             log.warning("unknown camera: %s, skipping", event.camera)
             return
 
+        camera_uuid = cam_info.uuid
         detect_type = map_label(event.label)
         if not detect_type:
             return
 
         if event_type == "new":
-            det = ProtectDetection.from_frigate_event(event, camera_uuid)
+            det = ProtectDetection.from_frigate_event(
+                event, camera_uuid, camera_mac=cam_info.mac
+            )
 
             # check coalescing
             existing = tracker.check(camera_uuid, detect_type)

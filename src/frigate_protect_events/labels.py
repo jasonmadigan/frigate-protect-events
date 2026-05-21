@@ -6,9 +6,16 @@ _LABEL_MAP: dict[str, str] = {
     "motorcycle": "vehicle",
     "bus": "vehicle",
     "truck": "vehicle",
+    "bicycle": "vehicle",
+    "boat": "vehicle",
     "dog": "animal",
     "cat": "animal",
     "bird": "animal",
+    "fox": "animal",
+    "deer": "animal",
+    "rabbit": "animal",
+    "horse": "animal",
+    "cow": "animal",
     "package": "package",
 }
 

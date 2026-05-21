@@ -113,6 +113,34 @@ class TestUpsertLabels:
         assert lids == [1, 2, 3]
         assert db.fetchone.call_count == 3
 
+    def test_upsert_sql_includes_last_seen(self):
+        db = MagicMock()
+        db.fetchone = MagicMock(side_effect=[
+            {"lid": 1}, {"lid": 2}, {"lid": 3},
+        ])
+        writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.upsert_labels(det)
+
+        sql = db.fetchone.call_args_list[0][0][0]
+        assert '"lastSeen"' in sql
+        assert 'EXCLUDED."lastSeen"' in sql
+
+    def test_upsert_passes_detection_timestamp(self):
+        db = MagicMock()
+        db.fetchone = MagicMock(side_effect=[
+            {"lid": 1}, {"lid": 2}, {"lid": 3},
+        ])
+        writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.upsert_labels(det)
+
+        # params: (uuid, name, lastSeen, now, now)
+        params = db.fetchone.call_args_list[0][0][1]
+        assert params[2] == det.start_ms
+
 
 class TestCreateDetectionLabels:
     def test_inserts_two_rows(self):
@@ -123,18 +151,58 @@ class TestCreateDetectionLabels:
         writer.create_detection_labels(det, [1, 2, 3])
 
         assert db.execute.call_count == 2
-        # first call: event-level (objectId = '')
+
+    def test_event_level_uses_null_objectid(self):
+        db = MagicMock()
+        writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.create_detection_labels(det, [1, 2, 3])
+
+        # event-level row has NULL hardcoded in SQL, no objectId param
+        event_sql = db.execute.call_args_list[0][0][0]
+        assert "NULL" in event_sql
+        # params should be (uuid, eventId, lids, now, now) -- 5 items
         first_params = db.execute.call_args_list[0][0][1]
-        assert first_params[2] == ""
-        # second call: sdo-level (objectId = sdo_id)
+        assert len(first_params) == 5
+
+    def test_sdo_level_uses_sdo_id(self):
+        db = MagicMock()
+        writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.create_detection_labels(det, [1, 2, 3])
+
         second_params = db.execute.call_args_list[1][0][1]
         assert second_params[2] == det.sdo_id
 
-
-class TestCreateThumbnail:
-    def test_inserts_thumbnail_with_jpeg(self):
+    def test_event_level_sql_has_on_conflict(self):
         db = MagicMock()
         writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.create_detection_labels(det, [1, 2, 3])
+
+        event_sql = db.execute.call_args_list[0][0][0]
+        assert "ON CONFLICT" in event_sql
+        assert '"objectId" IS NULL' in event_sql
+
+    def test_sdo_level_sql_has_on_conflict(self):
+        db = MagicMock()
+        writer = ProtectWriter(db)
+        det = _make_detection()
+
+        writer.create_detection_labels(det, [1, 2, 3])
+
+        sdo_sql = db.execute.call_args_list[1][0][0]
+        assert "ON CONFLICT" in sdo_sql
+        assert '"objectId" IS NOT NULL' in sdo_sql
+
+
+class TestCreateThumbnail:
+    def test_inserts_thumbnail_when_enabled(self):
+        db = MagicMock()
+        writer = ProtectWriter(db, write_thumbnail_to_db=True)
         det = _make_detection()
         jpeg = b"\xff\xd8\xff\xe0JFIF"
 
@@ -155,6 +223,26 @@ class TestCreateThumbnail:
 
         db.execute.assert_not_called()
 
+    def test_skips_db_insert_when_disabled(self):
+        db = MagicMock()
+        writer = ProtectWriter(db, write_thumbnail_to_db=False)
+        det = _make_detection()
+        jpeg = b"\xff\xd8\xff\xe0JFIF"
+
+        writer.create_thumbnail(det, jpeg)
+
+        db.execute.assert_not_called()
+
+    def test_default_is_disabled(self):
+        db = MagicMock()
+        writer = ProtectWriter(db)
+        det = _make_detection()
+        jpeg = b"\xff\xd8\xff\xe0JFIF"
+
+        writer.create_thumbnail(det, jpeg)
+
+        db.execute.assert_not_called()
+
 
 class TestWriteDetection:
     def test_orchestrates_all_operations(self):
@@ -168,7 +256,22 @@ class TestWriteDetection:
 
         writer.write_detection(det, jpeg)
 
-        # should have called execute multiple times + commit
+        # event + sdo + raw + track + 2 detection labels = 6 (thumbnail skipped by default)
+        assert db.execute.call_count >= 6
+        db.commit.assert_called_once()
+
+    def test_orchestrates_with_thumbnail_enabled(self):
+        db = MagicMock()
+        db.fetchone = MagicMock(side_effect=[
+            {"lid": 1}, {"lid": 2}, {"lid": 3},
+        ])
+        writer = ProtectWriter(db, write_thumbnail_to_db=True)
+        det = _make_detection()
+        jpeg = b"\xff\xd8"
+
+        writer.write_detection(det, jpeg)
+
+        # event + sdo + raw + track + 2 detection labels + thumbnail = 7
         assert db.execute.call_count >= 7
         db.commit.assert_called_once()
 

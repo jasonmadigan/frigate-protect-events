@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import NamedTuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from frigate_protect_events.db import ProtectDb
@@ -17,6 +17,11 @@ WHERE "isThirdPartyCamera" = true
 """
 
 
+class CameraInfo(NamedTuple):
+    uuid: str
+    mac: str | None
+
+
 class CameraCache:
     def __init__(
         self,
@@ -25,17 +30,21 @@ class CameraCache:
     ) -> None:
         self._db = db
         self._config_map = dict(config_map)
-        self._db_map: dict[str, str] = {}
+        self._db_map: dict[str, CameraInfo] = {}
 
     def load_from_db(self) -> None:
         rows = self._db.fetchall(_CAMERA_QUERY)
-        self._db_map = {row["name"]: row["id"] for row in rows}
+        self._db_map = {
+            row["name"]: CameraInfo(uuid=row["id"], mac=row["mac"])
+            for row in rows
+        }
         log.info("discovered %d cameras from protect db", len(self._db_map))
-        for name, uid in self._db_map.items():
-            log.info("  %s -> %s", name, uid)
+        for name, info in self._db_map.items():
+            log.info("  %s -> %s", name, info.uuid)
 
-    def resolve(self, frigate_name: str) -> str | None:
-        # config overrides take precedence
+    def resolve(self, frigate_name: str) -> CameraInfo | None:
+        # config overrides take precedence (no mac available from config)
         if frigate_name in self._config_map:
-            return self._config_map[frigate_name]
+            return CameraInfo(uuid=self._config_map[frigate_name], mac=None)
         return self._db_map.get(frigate_name)
+

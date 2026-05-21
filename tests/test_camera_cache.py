@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from frigate_protect_events.camera_cache import CameraCache
+from frigate_protect_events.camera_cache import CameraCache, CameraInfo
 
 
 class TestCameraCache:
@@ -10,20 +10,31 @@ class TestCameraCache:
             db=db,
             config_map={"front_door": "override-uuid"},
         )
-        assert cache.resolve("front_door") == "override-uuid"
+        result = cache.resolve("front_door")
+        assert result is not None
+        assert result.uuid == "override-uuid"
+        # config overrides don't have a mac
+        assert result.mac is None
         db.execute.assert_not_called()
 
     def test_auto_discover_from_db(self):
         db = MagicMock()
         db.fetchall.return_value = [
-            {"id": "uuid-1", "name": "front_door", "mac": "aa:bb", "host": "1.2.3.4"},
-            {"id": "uuid-2", "name": "back_garden", "mac": "cc:dd", "host": "1.2.3.5"},
+            {"id": "uuid-1", "name": "front_door", "mac": "AA:BB:CC:DD:EE:FF", "host": "1.2.3.4"},
+            {"id": "uuid-2", "name": "back_garden", "mac": "11:22:33:44:55:66", "host": "1.2.3.5"},
         ]
         cache = CameraCache(db=db, config_map={})
         cache.load_from_db()
 
-        assert cache.resolve("front_door") == "uuid-1"
-        assert cache.resolve("back_garden") == "uuid-2"
+        front = cache.resolve("front_door")
+        assert front is not None
+        assert front.uuid == "uuid-1"
+        assert front.mac == "AA:BB:CC:DD:EE:FF"
+
+        back = cache.resolve("back_garden")
+        assert back is not None
+        assert back.uuid == "uuid-2"
+        assert back.mac == "11:22:33:44:55:66"
 
     def test_unknown_camera_returns_none(self):
         db = MagicMock()
@@ -35,11 +46,13 @@ class TestCameraCache:
     def test_config_overrides_db(self):
         db = MagicMock()
         db.fetchall.return_value = [
-            {"id": "db-uuid", "name": "front_door", "mac": "aa:bb", "host": "1.2.3.4"},
+            {"id": "db-uuid", "name": "front_door", "mac": "AA:BB:CC:DD:EE:FF", "host": "1.2.3.4"},
         ]
         cache = CameraCache(
             db=db,
             config_map={"front_door": "config-uuid"},
         )
         cache.load_from_db()
-        assert cache.resolve("front_door") == "config-uuid"
+        result = cache.resolve("front_door")
+        assert result is not None
+        assert result.uuid == "config-uuid"

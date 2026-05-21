@@ -37,7 +37,7 @@ class TestIntegrationNewEvent:
     def test_write_detection_creates_all_rows(self, db_conn):
         db = _make_db()
         try:
-            writer = ProtectWriter(db)
+            writer = ProtectWriter(db, write_thumbnail_to_db=True)
             evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
             det = ProtectDetection.from_frigate_event(evt, CAMERA_UUID)
             jpeg = b"\xff\xd8\xff\xe0test-jpeg"
@@ -85,6 +85,10 @@ class TestIntegrationNewEvent:
             assert "smartDetectType:person" in label_names
             assert f"camera:{CAMERA_UUID}" in label_names
 
+            # verify labels have lastSeen
+            for label in labels:
+                assert label["lastSeen"] == 1700000000000
+
             # verify detectionLabels (2 rows)
             dl = db.fetchall(
                 'SELECT * FROM "detectionLabels" WHERE "eventId" = %s',
@@ -100,6 +104,22 @@ class TestIntegrationNewEvent:
             thumb = db.fetchone('SELECT * FROM thumbnails WHERE id = %s', (det.thumbnail_id,))
             assert thumb is not None
             assert bytes(thumb["content"]) == jpeg
+        finally:
+            db.close()
+
+    def test_write_detection_skips_thumbnail_db_by_default(self, db_conn):
+        db = _make_db()
+        try:
+            writer = ProtectWriter(db)
+            evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
+            det = ProtectDetection.from_frigate_event(evt, CAMERA_UUID)
+            jpeg = b"\xff\xd8\xff\xe0test-jpeg"
+
+            writer.write_detection(det, jpeg)
+
+            # thumbnail should NOT be in the DB
+            thumb = db.fetchone('SELECT * FROM thumbnails WHERE id = %s', (det.thumbnail_id,))
+            assert thumb is None
         finally:
             db.close()
 
@@ -152,6 +172,34 @@ class TestIntegrationCoalescing:
         finally:
             db.close()
 
+    def test_coalesced_detection_labels_upsert_no_conflict(self, db_conn):
+        """detectionLabels UPSERT should handle coalesced events without unique violation."""
+        db = _make_db()
+        try:
+            writer = ProtectWriter(db)
+
+            evt1 = FrigateEvent.from_mqtt(SAMPLE_AFTER)
+            det1 = ProtectDetection.from_frigate_event(evt1, CAMERA_UUID)
+            writer.write_detection(det1, None)
+
+            # coalesced detection reuses the same event id
+            after2 = {**SAMPLE_AFTER, "id": "frigate-evt-2", "start_time": 1700000005.0}
+            evt2 = FrigateEvent.from_mqtt(after2)
+            det2 = ProtectDetection.from_frigate_event(evt2, CAMERA_UUID)
+
+            # this should NOT raise a unique constraint violation
+            writer.write_coalesced_detection(det2, det1.event_id, None)
+
+            # verify detection labels exist
+            dl = db.fetchall(
+                'SELECT * FROM "detectionLabels" WHERE "eventId" = %s',
+                (det1.event_id,),
+            )
+            # event-level row (1) + sdo-level rows (2, one per SDO)
+            assert len(dl) >= 2
+        finally:
+            db.close()
+
 
 @requires_db
 class TestIntegrationCameraCache:
@@ -160,18 +208,18 @@ class TestIntegrationCameraCache:
         db_conn.execute(
             'INSERT INTO cameras (id, mac, host, name, "isThirdPartyCamera", "isAdopted") '
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            ("uuid-1", "aa:bb:cc", "192.168.1.100", "front_door", True, True),
+            ("uuid-1", "AA:BB:CC:DD:EE:FF", "192.168.1.100", "front_door", True, True),
         )
         db_conn.execute(
             'INSERT INTO cameras (id, mac, host, name, "isThirdPartyCamera", "isAdopted") '
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            ("uuid-2", "dd:ee:ff", "192.168.1.101", "back_garden", True, True),
+            ("uuid-2", "11:22:33:44:55:66", "192.168.1.101", "back_garden", True, True),
         )
         # non-adopted camera should be excluded
         db_conn.execute(
             'INSERT INTO cameras (id, mac, host, name, "isThirdPartyCamera", "isAdopted") '
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            ("uuid-3", "11:22:33", "192.168.1.102", "garage", True, False),
+            ("uuid-3", "77:88:99:AA:BB:CC", "192.168.1.102", "garage", True, False),
         )
 
         db = _make_db()
@@ -179,8 +227,16 @@ class TestIntegrationCameraCache:
             cache = CameraCache(db=db, config_map={})
             cache.load_from_db()
 
-            assert cache.resolve("front_door") == "uuid-1"
-            assert cache.resolve("back_garden") == "uuid-2"
+            front = cache.resolve("front_door")
+            assert front is not None
+            assert front.uuid == "uuid-1"
+            assert front.mac == "AA:BB:CC:DD:EE:FF"
+
+            back = cache.resolve("back_garden")
+            assert back is not None
+            assert back.uuid == "uuid-2"
+            assert back.mac == "11:22:33:44:55:66"
+
             assert cache.resolve("garage") is None
         finally:
             db.close()
