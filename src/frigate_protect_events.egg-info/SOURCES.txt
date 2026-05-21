@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+src/frigate_protect_events/__init__.py
+src/frigate_protect_events.egg-info/PKG-INFO
+src/frigate_protect_events.egg-info/SOURCES.txt
+src/frigate_protect_events.egg-info/dependency_links.txt
+src/frigate_protect_events.egg-info/requires.txt
+src/frigate_protect_events.egg-info/top_level.txt

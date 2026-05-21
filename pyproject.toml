@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "frigate-protect-events"
+version = "0.1.0"
+description = "Bridge Frigate AI detections into UniFi Protect as native smart detection events"
+requires-python = ">=3.11"
+dependencies = [
+    "paho-mqtt>=2.0",
+    "paramiko>=3.0",
+    "psycopg[binary]>=3.1",
+    "pyyaml>=6.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
