@@ -29,13 +29,13 @@ class CameraCache:
         config_map: dict[str, str],
     ) -> None:
         self._db = db
-        self._config_map = dict(config_map)
+        self._config_map = {k.lower(): v for k, v in config_map.items()}
         self._db_map: dict[str, CameraInfo] = {}
 
     def load_from_db(self) -> None:
         rows = self._db.fetchall(_CAMERA_QUERY)
         self._db_map = {
-            row["name"]: CameraInfo(uuid=row["id"], mac=row["mac"])
+            row["name"].lower(): CameraInfo(uuid=row["id"], mac=row["mac"])
             for row in rows
         }
         log.info("discovered %d cameras from protect db", len(self._db_map))
@@ -44,7 +44,8 @@ class CameraCache:
 
     def resolve(self, frigate_name: str) -> CameraInfo | None:
         # config overrides take precedence (no mac available from config)
-        if frigate_name in self._config_map:
-            return CameraInfo(uuid=self._config_map[frigate_name], mac=None)
-        return self._db_map.get(frigate_name)
+        key = frigate_name.lower()
+        if key in self._config_map:
+            return CameraInfo(uuid=self._config_map[key], mac=None)
+        return self._db_map.get(key)
 

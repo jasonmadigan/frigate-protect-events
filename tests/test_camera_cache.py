@@ -43,6 +43,29 @@ class TestCameraCache:
         cache.load_from_db()
         assert cache.resolve("nonexistent") is None
 
+    def test_case_insensitive_db_lookup(self):
+        db = MagicMock()
+        db.fetchall.return_value = [
+            {"id": "uuid-pump", "name": "Pumphouse", "mac": "AA:BB:CC:DD:EE:01", "host": "1.2.3.6"},
+        ]
+        cache = CameraCache(db=db, config_map={})
+        cache.load_from_db()
+
+        result = cache.resolve("pumphouse")
+        assert result is not None
+        assert result.uuid == "uuid-pump"
+        assert result.mac == "AA:BB:CC:DD:EE:01"
+
+    def test_case_insensitive_config_lookup(self):
+        db = MagicMock()
+        cache = CameraCache(
+            db=db,
+            config_map={"Front_Door": "cfg-uuid"},
+        )
+        result = cache.resolve("front_door")
+        assert result is not None
+        assert result.uuid == "cfg-uuid"
+
     def test_config_overrides_db(self):
         db = MagicMock()
         db.fetchall.return_value = [
