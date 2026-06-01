@@ -42,6 +42,15 @@ class TestFrigateEvent:
         evt = FrigateEvent.from_mqtt(data)
         assert evt.end_time == 1700000010.0
 
+    def test_snapshot_frame_time_defaults_none(self):
+        evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
+        assert evt.snapshot_frame_time is None
+
+    def test_from_mqtt_parses_snapshot_frame_time(self):
+        data = {**SAMPLE_AFTER, "snapshot": {"frame_time": 1700000000.5}}
+        evt = FrigateEvent.from_mqtt(data)
+        assert evt.snapshot_frame_time == 1700000000.5
+
     def test_from_mqtt_minimal_fields(self):
         minimal = {
             "id": "x",

@@ -10,11 +10,9 @@ from frigate_protect_events.camera_cache import CameraCache
 from frigate_protect_events.coalesce import CoalesceTracker
 from frigate_protect_events.config import load_config
 from frigate_protect_events.db import ProtectDb
-from frigate_protect_events.labels import map_label
-from frigate_protect_events.models import FrigateEvent, ProtectDetection
 from frigate_protect_events.mqtt import MqttSubscriber
+from frigate_protect_events.processor import EventProcessor
 from frigate_protect_events.protect_writer import ProtectWriter
-from frigate_protect_events.snapshot import fetch_snapshot
 from frigate_protect_events.tunnel import SshTunnel
 
 logging.basicConfig(
@@ -52,59 +50,13 @@ def main() -> None:
     cameras = CameraCache(db=db, config_map=cfg.cameras)
     cameras.load_from_db()
 
-    # writer and coalescing
+    # writer, coalescing and event processing
     writer = ProtectWriter(db)
     tracker = CoalesceTracker(cfg.coalesce_window_s)
-
-    # tracks frigate event id -> protect event id for end events
-    event_map: dict[str, str] = {}
-
-    def on_event(event_type: str, event: FrigateEvent) -> None:
-        cam_info = cameras.resolve(event.camera)
-        if not cam_info:
-            log.warning("unknown camera: %s, skipping", event.camera)
-            return
-
-        camera_uuid = cam_info.uuid
-        detect_type = map_label(event.label)
-        if not detect_type:
-            return
-
-        if event_type == "new":
-            det = ProtectDetection.from_frigate_event(event, camera_uuid)
-
-            # check coalescing
-            existing = tracker.check(camera_uuid, detect_type)
-            if existing:
-                writer.write_coalesced_detection(det, existing, _get_snapshot(cfg, event))
-                event_map[event.id] = existing
-                log.info("coalesced %s into existing event %s", event.id, existing)
-            else:
-                jpeg = _get_snapshot(cfg, event)
-                writer.write_detection(det, jpeg)
-                event_map[event.id] = det.event_id
-
-        elif event_type == "end":
-            protect_event_id = event_map.pop(event.id, None)
-            if not protect_event_id:
-                log.warning("end event for unknown frigate id: %s", event.id)
-                return
-
-            end_ms = int(event.end_time * 1000) if event.end_time else None
-            if end_ms:
-                writer.update_event_end(protect_event_id, end_ms)
-                tracker.record(camera_uuid, detect_type, protect_event_id, event.end_time)
-
-        # periodic cleanup
-        tracker.expire()
-
-    def _get_snapshot(cfg, event: FrigateEvent) -> bytes | None:
-        if event.has_snapshot and cfg.frigate_host:
-            return fetch_snapshot(cfg.frigate_host, event.id)
-        return None
+    processor = EventProcessor(cameras, writer, tracker, cfg)
 
     # graceful shutdown
-    mqtt_sub = MqttSubscriber(cfg.mqtt, on_event)
+    mqtt_sub = MqttSubscriber(cfg.mqtt, processor.handle)
 
     def shutdown(signum, frame):
         log.info("shutting down (signal %d)", signum)

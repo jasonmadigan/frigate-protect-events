@@ -75,6 +75,19 @@ VALUES (%s, %s, %s, %s::bigint, %s, %s, %s, false)
 ON CONFLICT (id) DO NOTHING
 """
 
+_UPSERT_THUMBNAIL = """\
+INSERT INTO thumbnails
+  (id, "cameraId", "eventId", timestamp, "createdAt",
+   "updatedAt", content, "isFullfov")
+VALUES (%s, %s, %s, %s::bigint, %s, %s, %s, false)
+ON CONFLICT (id) DO UPDATE
+  SET content = EXCLUDED.content, "updatedAt" = EXCLUDED."updatedAt"
+"""
+
+_EVENT_THUMB_LOOKUP = """\
+SELECT "thumbnailId", "cameraId", "start" FROM events WHERE id = %s
+"""
+
 
 def _uuid4() -> str:
     return str(uuid.uuid4())
@@ -196,6 +209,36 @@ class ProtectWriter:
                 jpeg,
             ),
         )
+
+    def set_event_thumbnail(self, event_id: str, jpeg: bytes | None) -> None:
+        """write or overwrite an event's thumbnail with a finalised snapshot.
+
+        targets the event's own thumbnailId, so it also corrects coalesced
+        events whose thumbnail was first set from an earlier detection."""
+        if jpeg is None:
+            return
+        row = self._db.fetchone(_EVENT_THUMB_LOOKUP, (event_id,))
+        if row is None:
+            log.warning("no event row for thumbnail update: %s", event_id)
+            return
+        now = _iso_now()
+        try:
+            self._db.execute(
+                _UPSERT_THUMBNAIL,
+                (
+                    row["thumbnailId"],
+                    row["cameraId"],
+                    event_id,
+                    row["start"],
+                    now,
+                    now,
+                    jpeg,
+                ),
+            )
+            self._db.commit()
+        except Exception:
+            self._db.rollback()
+            raise
 
     def write_detection(
         self, det: ProtectDetection, jpeg: bytes | None

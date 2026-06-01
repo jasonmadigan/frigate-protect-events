@@ -19,9 +19,13 @@ class FrigateEvent:
     start_time: float
     end_time: float | None
     has_snapshot: bool
+    # capture time of frigate's current best frame. lets us tell whether a
+    # snapshot belongs to this event or is a stale frame from a prior one.
+    snapshot_frame_time: float | None = None
 
     @classmethod
     def from_mqtt(cls, after: dict) -> FrigateEvent:
+        snapshot = after.get("snapshot") or {}
         return cls(
             id=after["id"],
             camera=after["camera"],
@@ -31,6 +35,7 @@ class FrigateEvent:
             start_time=after["start_time"],
             end_time=after.get("end_time"),
             has_snapshot=after.get("has_snapshot", False),
+            snapshot_frame_time=snapshot.get("frame_time"),
         )
 
 

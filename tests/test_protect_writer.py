@@ -224,6 +224,45 @@ class TestCreateThumbnail:
         db.execute.assert_not_called()
 
 
+class TestSetEventThumbnail:
+    def test_noop_without_jpeg(self):
+        db = MagicMock()
+        writer = ProtectWriter(db)
+
+        writer.set_event_thumbnail("evt-id", None)
+
+        db.fetchone.assert_not_called()
+        db.execute.assert_not_called()
+
+    def test_overwrites_event_thumbnail(self):
+        db = MagicMock()
+        db.fetchone.return_value = {
+            "thumbnailId": "thumb-123",
+            "cameraId": "cam-1",
+            "start": 1700000000000,
+        }
+        writer = ProtectWriter(db)
+
+        writer.set_event_thumbnail("evt-id", b"\xff\xd8night")
+
+        sql = db.execute.call_args[0][0]
+        assert "INSERT INTO thumbnails" in sql
+        assert "DO UPDATE" in sql
+        params = db.execute.call_args[0][1]
+        assert params[0] == "thumb-123"
+        assert params[6] == b"\xff\xd8night"
+        db.commit.assert_called_once()
+
+    def test_noop_when_event_missing(self):
+        db = MagicMock()
+        db.fetchone.return_value = None
+        writer = ProtectWriter(db)
+
+        writer.set_event_thumbnail("evt-id", b"\xff\xd8")
+
+        db.execute.assert_not_called()
+
+
 class TestWriteDetection:
     def test_orchestrates_all_operations_with_jpeg(self):
         db = MagicMock()

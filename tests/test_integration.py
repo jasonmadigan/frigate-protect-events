@@ -123,6 +123,55 @@ class TestIntegrationNewEvent:
 
 
 @requires_db
+class TestIntegrationThumbnailOverwrite:
+    def test_set_event_thumbnail_inserts_then_overwrites(self, db_conn):
+        db = _make_db()
+        try:
+            writer = ProtectWriter(db)
+            evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
+            det = ProtectDetection.from_frigate_event(evt, CAMERA_UUID)
+            writer.write_detection(det, None)  # no thumbnail at new
+
+            assert db.fetchone(
+                "SELECT * FROM thumbnails WHERE id = %s", (det.thumbnail_id,)
+            ) is None
+
+            # finalised frame fetched at end
+            writer.set_event_thumbnail(det.event_id, b"\xff\xd8night")
+            thumb = db.fetchone(
+                "SELECT * FROM thumbnails WHERE id = %s", (det.thumbnail_id,)
+            )
+            assert thumb is not None
+            assert bytes(thumb["content"]) == b"\xff\xd8night"
+
+            # a later end overwrites in place, no duplicate row
+            writer.set_event_thumbnail(det.event_id, b"\xff\xd8better")
+            rows = db.fetchall(
+                "SELECT * FROM thumbnails WHERE id = %s", (det.thumbnail_id,)
+            )
+            assert len(rows) == 1
+            assert bytes(rows[0]["content"]) == b"\xff\xd8better"
+        finally:
+            db.close()
+
+    def test_set_event_thumbnail_noop_without_jpeg(self, db_conn):
+        db = _make_db()
+        try:
+            writer = ProtectWriter(db)
+            evt = FrigateEvent.from_mqtt(SAMPLE_AFTER)
+            det = ProtectDetection.from_frigate_event(evt, CAMERA_UUID)
+            writer.write_detection(det, None)
+
+            writer.set_event_thumbnail(det.event_id, None)
+
+            assert db.fetchone(
+                "SELECT * FROM thumbnails WHERE id = %s", (det.thumbnail_id,)
+            ) is None
+        finally:
+            db.close()
+
+
+@requires_db
 class TestIntegrationEndEvent:
     def test_update_event_end_sets_timestamp(self, db_conn):
         db = _make_db()
